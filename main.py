@@ -29,39 +29,46 @@ with st.form("siparis_formu", clear_on_submit=True):
     submit = st.form_submit_button("Siparişi Kaydet")
 
     if submit:
-        if ad_soyad and en > 0 and boy > 0:
+        if en > 0 and boy > 0:
             now_turkey = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Istanbul")).isoformat()
             
-            # Esnek Kayıt Sözlüğü
+            # Veritabanında garanti olan sütunlarla kayıt dene
             data = {
-                "ad_soyad": ad_soyad,
                 "en": en,
                 "boy": boy,
                 "tutar": tutar,
                 "tarih": now_turkey
             }
             
-            try:
-                supabase.table("siparisler").insert(data).execute()
-                st.success("Sipariş başarıyla kaydedildi!")
-                st.rerun()
-            except Exception as insert_error:
-                # Eger ad_soyad sutunu veritabaninda yoksa musteri_adi ile dener
+            # Eğer müşteri adı girildiyse olabilecek sütun isimleriyle dene
+            if ad_soyad:
+                for col_name in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
+                    try:
+                        temp_data = data.copy()
+                        temp_data[col_name] = ad_soyad
+                        supabase.table("siparisler").insert(temp_data).execute()
+                        st.success("Sipariş başarıyla kaydedildi!")
+                        st.rerun()
+                        break
+                    except Exception:
+                        continue
+                else:
+                    # İsim sütunları uymadıysa isimsiz olarak temel verilerle kaydet
+                    try:
+                        supabase.table("siparisler").insert(data).execute()
+                        st.success("Sipariş kaydedildi (İsim sütunu veritabanında bulunamadığı için sadece ölçü/tutar kaydedildi).")
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Sipariş kaydedilemedi: {e}")
+            else:
                 try:
-                    alt_data = {
-                        "musteri_adi": ad_soyad,
-                        "en": en,
-                        "boy": boy,
-                        "tutar": tutar,
-                        "tarih": now_turkey
-                    }
-                    supabase.table("siparisler").insert(alt_data).execute()
+                    supabase.table("siparisler").insert(data).execute()
                     st.success("Sipariş başarıyla kaydedildi!")
                     st.rerun()
-                except Exception as final_error:
-                    st.error(f"Kayıt eklenirken hata oluştu: {final_error}")
+                except Exception as e:
+                    st.error(f"Sipariş kaydedilemedi: {e}")
         else:
-            st.warning("Lütfen müşteri adını ve ölçüleri eksiksiz girin.")
+            st.warning("Lütfen ölçüleri eksiksiz girin.")
 
 st.divider()
 
@@ -76,8 +83,15 @@ try:
         for k in kayitlar:
             siparis_id = k.get("id")
             
-            # Farklı olabilecek müşteri adı sütun isimlerini kontrol etme
-            ad_soyad_val = k.get("ad_soyad") or k.get("musteri_adi") or k.get("ad") or "İsimsiz Müşteri"
+            # Veritabanındaki olası müşteri adı alanlarını bulma
+            ad_soyad_val = (
+                k.get("ad_soyad") or 
+                k.get("musteri_adi") or 
+                k.get("musteri") or 
+                k.get("ad") or 
+                k.get("name") or 
+                "İsimsiz Müşteri"
+            )
             
             # Tarih Formatlama
             tarih_raw = k.get("tarih") or k.get("created_at") or ""
@@ -97,7 +111,6 @@ try:
             with st.container(border=True):
                 c1, c2, c3, c4, c5 = st.columns([3, 3, 2, 1, 1])
                 
-                # Müşteri Adı ve Tarih Gösterimi
                 if tarih_str:
                     c1.write(f"**Müşteri:** {ad_soyad_val}\n\n*📅 {tarih_str}*")
                 else:
@@ -129,17 +142,15 @@ try:
                         yeni_tutar = st.number_input("Tutar (TL)", value=float(tutar_val), step=10.0)
                         
                         if st.form_submit_button("Kaydet ve Güncelle"):
-                            # Güncelleme sırasında sütun kontrolü
                             update_data = {"en": yeni_en, "boy": yeni_boy, "tutar": yeni_tutar}
-                            if "ad_soyad" in k:
-                                update_data["ad_soyad"] = yeni_ad
-                            elif "musteri_adi" in k:
-                                update_data["musteri_adi"] = yeni_ad
-                            else:
-                                update_data["ad_soyad"] = yeni_ad
+                            
+                            # Mevcut kayıttaki isim sütunu tespit edilirse onu güncelle
+                            for key in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
+                                if key in k:
+                                    update_data[key] = yeni_ad
+                                    break
 
                             supabase.table("siparisler").update(update_data).eq("id", siparis_id).execute()
-                            
                             st.session_state[edit_key] = False
                             st.success("Müşteri bilgileri başarıyla güncellendi!")
                             st.rerun()
