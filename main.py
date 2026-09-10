@@ -31,6 +31,8 @@ with st.form("siparis_formu", clear_on_submit=True):
     if submit:
         if ad_soyad and en > 0 and boy > 0:
             now_turkey = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Istanbul")).isoformat()
+            
+            # Esnek Kayıt Sözlüğü
             data = {
                 "ad_soyad": ad_soyad,
                 "en": en,
@@ -38,9 +40,26 @@ with st.form("siparis_formu", clear_on_submit=True):
                 "tutar": tutar,
                 "tarih": now_turkey
             }
-            supabase.table("siparisler").insert(data).execute()
-            st.success("Sipariş başarıyla kaydedildi!")
-            st.rerun()
+            
+            try:
+                supabase.table("siparisler").insert(data).execute()
+                st.success("Sipariş başarıyla kaydedildi!")
+                st.rerun()
+            except Exception as insert_error:
+                # Eger ad_soyad sutunu veritabaninda yoksa musteri_adi ile dener
+                try:
+                    alt_data = {
+                        "musteri_adi": ad_soyad,
+                        "en": en,
+                        "boy": boy,
+                        "tutar": tutar,
+                        "tarih": now_turkey
+                    }
+                    supabase.table("siparisler").insert(alt_data).execute()
+                    st.success("Sipariş başarıyla kaydedildi!")
+                    st.rerun()
+                except Exception as final_error:
+                    st.error(f"Kayıt eklenirken hata oluştu: {final_error}")
         else:
             st.warning("Lütfen müşteri adını ve ölçüleri eksiksiz girin.")
 
@@ -58,7 +77,7 @@ try:
             siparis_id = k.get("id")
             
             # Farklı olabilecek müşteri adı sütun isimlerini kontrol etme
-            ad_soyad = k.get("ad_soyad") or k.get("musteri_adi") or k.get("ad") or "İsimsiz Müşteri"
+            ad_soyad_val = k.get("ad_soyad") or k.get("musteri_adi") or k.get("ad") or "İsimsiz Müşteri"
             
             # Tarih Formatlama
             tarih_raw = k.get("tarih") or k.get("created_at") or ""
@@ -80,9 +99,9 @@ try:
                 
                 # Müşteri Adı ve Tarih Gösterimi
                 if tarih_str:
-                    c1.write(f"**Müşteri:** {ad_soyad}\n\n*📅 {tarih_str}*")
+                    c1.write(f"**Müşteri:** {ad_soyad_val}\n\n*📅 {tarih_str}*")
                 else:
-                    c1.write(f"**Müşteri:** {ad_soyad}")
+                    c1.write(f"**Müşteri:** {ad_soyad_val}")
                     
                 c2.write(f"**Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
                 c3.write(f"**Tutar:** {tutar_val:.2f} TL")
@@ -103,19 +122,23 @@ try:
                 # Düzenleme Formu
                 if st.session_state[edit_key]:
                     with st.form(key=f"form_edit_{siparis_id}"):
-                        yeni_ad = st.text_input("Müşteri Ad Soyad", value=ad_soyad)
+                        yeni_ad = st.text_input("Müşteri Ad Soyad", value=ad_soyad_val)
                         col_e, col_b = st.columns(2)
                         yeni_en = col_e.number_input("En (m)", value=float(en_val), step=0.01)
                         yeni_boy = col_b.number_input("Boy (m)", value=float(boy_val), step=0.01)
                         yeni_tutar = st.number_input("Tutar (TL)", value=float(tutar_val), step=10.0)
                         
                         if st.form_submit_button("Kaydet ve Güncelle"):
-                            supabase.table("siparisler").update({
-                                "ad_soyad": yeni_ad,
-                                "en": yeni_en,
-                                "boy": yeni_boy,
-                                "tutar": yeni_tutar
-                            }).eq("id", siparis_id).execute()
+                            # Güncelleme sırasında sütun kontrolü
+                            update_data = {"en": yeni_en, "boy": yeni_boy, "tutar": yeni_tutar}
+                            if "ad_soyad" in k:
+                                update_data["ad_soyad"] = yeni_ad
+                            elif "musteri_adi" in k:
+                                update_data["musteri_adi"] = yeni_ad
+                            else:
+                                update_data["ad_soyad"] = yeni_ad
+
+                            supabase.table("siparisler").update(update_data).eq("id", siparis_id).execute()
                             
                             st.session_state[edit_key] = False
                             st.success("Müşteri bilgileri başarıyla güncellendi!")
