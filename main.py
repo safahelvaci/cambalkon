@@ -15,101 +15,95 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-st.title("🧱 Cam Balkon Sipariş Takip Sistemi")
+st.title("Cam Balkon Sipariş & Müşteri Takip")
 
-# --- SİPARİŞ EKLEME FORMU ---
-with st.expander("➕ Yeni Sipariş Ekle", expanded=True):
+# --- MÜŞTERİ / SİPARİŞ EKLEME FORMU ---
+st.header("Yeni Sipariş Ekle")
+with st.form("siparis_formu", clear_on_submit=True):
+    ad_soyad = st.text_input("Müşteri Adı Soyadı")
     col1, col2 = st.columns(2)
-    with col1:
-        musteri = st.text_input("Müşteri Adı / Soyadı")
-        en = st.number_input("En (Metre)", min_value=0.0, step=0.1, format="%.2f")
-        boy = st.number_input("Boy (Metre)", min_value=0.0, step=0.1, format="%.2f")
-    with col2:
-        fiyat = st.number_input("m² Fiyatı (TL)", min_value=0.0, step=50.0, format="%.2f")
+    en = col1.number_input("En (m)", min_value=0.0, step=0.01)
+    boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
+    tutar = st.number_input("Tutar (TL)", min_value=0.0, step=10.0)
     
-    if st.button("Siparişi Hesapla ve Kaydet"):
-        if musteri and en > 0 and boy > 0 and fiyat > 0:
-            m2 = en * boy
-            tutar = m2 * fiyat
-            
-            # Türkiye Saati Ayarı (UTC+3)
-            turkiye_saati = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Istanbul"))
-            tarih = turkiye_saati.strftime("%d.%m.%Y %H:%M")
-            
-            # Supabase'e Veri Ekleme
-            supabase.table("siparisler").insert({
-                "musteri": musteri,
+    submit = st.form_submit_button("Siparişi Kaydet")
+
+    if submit:
+        if ad_soyad and en > 0 and boy > 0:
+            now_turkey = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Istanbul")).isoformat()
+            data = {
+                "ad_soyad": ad_soyad,
                 "en": en,
                 "boy": boy,
-                "metrekare": m2,
                 "tutar": tutar,
-                "tarih": tarih
-            }).execute()
-            
-            st.success(f"{musteri} siparişi başarıyla kaydedildi! ({m2:.2f} m² - {tutar:.2f} TL)")
+                "tarih": now_turkey
+            }
+            supabase.table("siparisler").insert(data).execute()
+            st.success("Sipariş başarıyla kaydedildi!")
             st.rerun()
         else:
-            st.error("Lütfen tüm alanları eksiksiz doldurun.")
+            st.warning("Lütfen müşteri adını ve ölçüleri eksiksiz girin.")
 
 st.divider()
 
-# --- KAYITLI SİPARİŞLERİ LİSTELEME ---
-st.subheader("📋 Kayıtlı Siparişler")
+# --- MÜŞTERİ / SİPARİŞ LİSTELEME, DÜZENLEME VE SİLME ---
+st.header("Kayıtlı Siparişler")
 
 try:
-    response = supabase.table("siparisler").select("*").execute()
+    response = supabase.table("siparisler").select("*").order("id", desc=True).execute()
     kayitlar = response.data
-    
+
     if kayitlar:
-        kayitlar = sorted(kayitlar, key=lambda x: x.get('id', 0), reverse=True)
+        for k in kayitlar:
+            siparis_id = k.get("id")
+            ad_soyad = k.get("ad_soyad", "")
+            tarih_val = k.get("tarih", "")
+            en_val = k.get("en", 0.0)
+            boy_val = k.get("boy", 0.0)
+            m2_val = en_val * boy_val if en_val and boy_val else 0.0
+            tutar_val = k.get("tutar", 0.0)
 
-  if kayitlar:
-            for k in kayitlar:
-                siparis_id = k.get("id")
-                ad_soyad = k.get("ad_soyad", "")
-                tarih_val = k.get("tarih", "")
-                en_val = k.get("en", 0.0)
-                boy_val = k.get("boy", 0.0)
-                m2_val = en_val * boy_val if en_val and boy_val else 0.0
-                tutar_val = k.get("tutar", 0.0)
+            with st.container(border=True):
+                c1, c2, c3, c4, c5 = st.columns([3, 3, 2, 1, 1])
+                c1.write(f"**Müşteri:** {ad_soyad}")
+                c2.write(f"**Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
+                c3.write(f"**Tutar:** {tutar_val:.2f} TL")
+                
+                # Düzenleme Modu Durum Kontrolü
+                edit_key = f"edit_mode_{siparis_id}"
+                if edit_key not in st.session_state:
+                    st.session_state[edit_key] = False
 
-                with st.container(border=True):
-                    c1, c2, c3, c4, c5 = st.columns([2, 2, 2, 1, 1])
-                    c1.write(f"**Müşteri:** {ad_soyad}")
-                    c2.write(f"**Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
-                    c3.write(f"**Tutar:** {tutar_val:.2f} TL")
-                    
-                    # Düzenleme Modu Kontrolü
-                    edit_key = f"edit_mode_{siparis_id}"
-                    if edit_key not in st.session_state:
-                        st.session_state[edit_key] = False
+                if c4.button("✏️", key=f"btn_edit_{siparis_id}", help="Düzenle"):
+                    st.session_state[edit_key] = not st.session_state[edit_key]
 
-                    if c4.button("✏️", key=f"btn_edit_{siparis_id}", help="Düzenle"):
-                        st.session_state[edit_key] = not st.session_state[edit_key]
+                if c5.button("🗑️", key=f"sil_{siparis_id}", help="Sil"):
+                    supabase.table("siparisler").delete().eq("id", siparis_id).execute()
+                    st.success("Kayıt silindi!")
+                    st.rerun()
 
-                    if c5.button("🗑️", key=f"sil_{siparis_id}", help="Sil"):
-                        supabase.table("siparisler").delete().eq("id", siparis_id).execute()
-                        st.success("Kayıt silindi!")
-                        st.rerun()
-
-                    # Düzenleme Formu
-                    if st.session_state[edit_key]:
-                        with st.form(key=f"form_edit_{siparis_id}"):
-                            yeni_ad = st.text_input("Müşteri Ad Soyad", value=ad_soyad)
-                            col_e, col_b = st.columns(2)
-                            yeni_en = col_e.number_input("En (m)", value=float(en_val), step=0.01)
-                            yeni_boy = col_b.number_input("Boy (m)", value=float(boy_val), step=0.01)
-                            yeni_tutar = st.number_input("Tutar (TL)", value=float(tutar_val), step=10.0)
+                # Düzenleme Formu
+                if st.session_state[edit_key]:
+                    with st.form(key=f"form_edit_{siparis_id}"):
+                        yeni_ad = st.text_input("Müşteri Ad Soyad", value=ad_soyad)
+                        col_e, col_b = st.columns(2)
+                        yeni_en = col_e.number_input("En (m)", value=float(en_val), step=0.01)
+                        yeni_boy = col_b.number_input("Boy (m)", value=float(boy_val), step=0.01)
+                        yeni_tutar = st.number_input("Tutar (TL)", value=float(tutar_val), step=10.0)
+                        
+                        if st.form_submit_button("Kaydet ve Güncelle"):
+                            supabase.table("siparisler").update({
+                                "ad_soyad": yeni_ad,
+                                "en": yeni_en,
+                                "boy": yeni_boy,
+                                "tutar": yeni_tutar
+                            }).eq("id", siparis_id).execute()
                             
-                            if st.form_submit_button("Kaydet ve Güncelle"):
-                                supabase.table("siparisler").update({
-                                    "ad_soyad": yeni_ad,
-                                    "en": yeni_en,
-                                    "boy": yeni_boy,
-                                    "tutar": yeni_tutar
-                                }).eq("id", siparis_id).execute()
-                                
-                                st.session_state[edit_key] = False
-                                st.success("Müşteri bilgileri başarıyla güncellendi!") 
-                                else:
-                                    st.info("Henüz kayıtlı sipariş bulunmuyor.")
+                            st.session_state[edit_key] = False
+                            st.success("Müşteri bilgileri başarıyla güncellendi!")
+                            st.rerun()
+    else:
+        st.info("Henüz kayıtlı sipariş bulunmuyor.")
+
+except Exception as e:
+    st.error(f"Veri çekilirken bir hata oluştu: {e}")
