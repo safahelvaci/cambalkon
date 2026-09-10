@@ -56,8 +56,20 @@ try:
     if kayitlar:
         for k in kayitlar:
             siparis_id = k.get("id")
-            ad_soyad = k.get("ad_soyad", "")
-            tarih_val = k.get("tarih", "")
+            
+            # Farklı olabilecek müşteri adı sütun isimlerini kontrol etme
+            ad_soyad = k.get("ad_soyad") or k.get("musteri_adi") or k.get("ad") or "İsimsiz Müşteri"
+            
+            # Tarih Formatlama
+            tarih_raw = k.get("tarih") or k.get("created_at") or ""
+            tarih_str = ""
+            if tarih_raw:
+                try:
+                    dt = datetime.datetime.fromisoformat(str(tarih_raw).replace('Z', '+00:00'))
+                    tarih_str = dt.strftime("%d.%m.%Y %H:%M")
+                except Exception:
+                    tarih_str = str(tarih_raw)[:16]
+
             en_val = k.get("en", 0.0)
             boy_val = k.get("boy", 0.0)
             m2_val = en_val * boy_val if en_val and boy_val else 0.0
@@ -65,7 +77,13 @@ try:
 
             with st.container(border=True):
                 c1, c2, c3, c4, c5 = st.columns([3, 3, 2, 1, 1])
-                c1.write(f"**Müşteri:** {ad_soyad}")
+                
+                # Müşteri Adı ve Tarih Gösterimi
+                if tarih_str:
+                    c1.write(f"**Müşteri:** {ad_soyad}\n\n*📅 {tarih_str}*")
+                else:
+                    c1.write(f"**Müşteri:** {ad_soyad}")
+                    
                 c2.write(f"**Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
                 c3.write(f"**Tutar:** {tutar_val:.2f} TL")
                 
