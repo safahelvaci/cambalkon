@@ -311,7 +311,20 @@ try:
                         with c1:
                             if tarih_formatted:
                                 st.caption(f"📅 Sipariş Tarihi: {tarih_formatted}")
-                            st.markdown(f"📋 **Sipariş Durumu:** `{durum_val}`")
+                            
+                            # --- ANLIK HIZLI DURUM DEĞİŞTİRME SEÇENEĞİ ---
+                            mevcut_index = SIPARIS_DURUMLARI.index(durum_val) if durum_val in SIPARIS_DURUMLARI else 0
+                            hizli_durum = st.selectbox(
+                                "📋 Sipariş Durumunu Değiştir", 
+                                SIPARIS_DURUMLARI, 
+                                index=mevcut_index, 
+                                key=f"quick_status_{siparis_id}"
+                            )
+                            if hizli_durum != durum_val:
+                                supabase.table("siparisler").update({"durum": hizli_durum}).eq("id", siparis_id).execute()
+                                st.toast(f"Sipariş durumu '{hizli_durum}' olarak güncellendi!")
+                                st.rerun()
+
                             st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
                             st.markdown(f"💵 **m² Fiyatı:** {format_tam_tl(m2_birim_fiyat)} TL")
                             st.markdown(f"🎨 **Cam:** {cam_val} | 🖌️ **Alüminyum:** {alum_val}")
