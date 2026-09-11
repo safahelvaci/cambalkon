@@ -25,22 +25,20 @@ with st.form("siparis_formu", clear_on_submit=True):
     en = col1.number_input("En (m)", min_value=0.0, step=0.01)
     boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
     tutar = st.number_input("Tutar (TL)", min_value=0.0, step=10.0)
-    
+
     submit = st.form_submit_button("Siparişi Kaydet")
 
     if submit:
         if en > 0 and boy > 0:
             now_turkey = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Istanbul")).isoformat()
-            
-            # Veritabanında garanti olan sütunlarla kayıt dene
+
             data = {
                 "en": en,
                 "boy": boy,
                 "tutar": tutar,
                 "tarih": now_turkey
             }
-            
-            # Eğer müşteri adı girildiyse olabilecek sütun isimleriyle dene
+
             if ad_soyad:
                 for col_name in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
                     try:
@@ -52,110 +50,152 @@ with st.form("siparis_formu", clear_on_submit=True):
                         break
                     except Exception:
                         continue
-                else:
-                    # İsim sütunları uymadıysa isimsiz olarak temel verilerle kaydet
-                    try:
-                        supabase.table("siparisler").insert(data).execute()
-                        st.success("Sipariş kaydedildi (İsim sütunu veritabanında bulunamadığı için sadece ölçü/tutar kaydedildi).")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Sipariş kaydedilemedi: {e}")
             else:
                 try:
                     supabase.table("siparisler").insert(data).execute()
-                    st.success("Sipariş başarıyla kaydedildi!")
+                    st.success("Sipariş kaydedildi.")
                     st.rerun()
                 except Exception as e:
                     st.error(f"Sipariş kaydedilemedi: {e}")
         else:
-            st.warning("Lütfen ölçüleri eksiksiz girin.")
+            st.warning("Lütfen En ve Boy değerlerini 0'dan büyük giriniz.")
 
 st.divider()
 
-# --- MÜŞTERİ / SİPARİŞ LİSTELEME, DÜZENLEME VE SİLME ---
+# --- KAYITLI SİPARİŞLERİ LİSTELEME VE FİLTRELEME ---
 st.header("Kayıtlı Siparişler")
 
 try:
     response = supabase.table("siparisler").select("*").order("id", desc=True).execute()
-    kayitlar = response.data
+    siparisler = response.data
 
-    if kayitlar:
-        for k in kayitlar:
-            siparis_id = k.get("id")
-            
-            # Veritabanındaki olası müşteri adı alanlarını bulma
-            ad_soyad_val = (
-                k.get("ad_soyad") or 
-                k.get("musteri_adi") or 
-                k.get("musteri") or 
-                k.get("ad") or 
-                k.get("name") or 
-                "İsimsiz Müşteri"
-            )
-            
-            # Tarih Formatlama
-            tarih_raw = k.get("tarih") or k.get("created_at") or ""
-            tarih_str = ""
-            if tarih_raw:
-                try:
-                    dt = datetime.datetime.fromisoformat(str(tarih_raw).replace('Z', '+00:00'))
-                    tarih_str = dt.strftime("%d.%m.%Y %H:%M")
-                except Exception:
-                    tarih_str = str(tarih_raw)[:16]
+    if siparisler:
+        # Arama ve Filtreleme Barları
+        f_col1, f_col2 = st.columns(2)
+        with f_col1:
+            arama_metni = st.text_input("🔍 Müşteri Adına Göre Ara", placeholder="Müşteri adı giriniz...")
+        with f_col2:
+            tarih_secimi = st.date_input("📅 Tarih Aralığı Seçin", value=(), help="Başlangıç ve bitiş tarihi seçin")
 
-            en_val = k.get("en", 0.0)
-            boy_val = k.get("boy", 0.0)
-            m2_val = en_val * boy_val if en_val and boy_val else 0.0
-            tutar_val = k.get("tutar", 0.0)
+        filtreli_siparisler = siparisler.copy()
 
-            with st.container(border=True):
-                c1, c2, c3, c4, c5 = st.columns([3, 3, 2, 1, 1])
-                
+        # 1. Müşteri İsmine Göre Filtrele
+        if arama_metni:
+            arama_kucuk = arama_metni.lower()
+            yeni_liste = []
+            for item in filtreli_siparisler:
+                isim = str(
+                    item.get("ad_soyad") or 
+                    item.get("musteri_adi") or 
+                    item.get("musteri") or 
+                    item.get("ad") or 
+                    item.get("name") or "İsimsiz Müşteri"
+                ).lower()
+                if arama_kucuk in isim:
+                    yeni_liste.append(item)
+            filtreli_siparisler = yeni_liste
+
+        # 2. Tarih Aralığına Göre Filtrele
+        if len(tarih_secimi) == 2:
+            baslangic, bitis = tarih_secimi
+            yeni_liste = []
+            for item in filtreli_siparisler:
+                tarih_str = item.get("tarih")
                 if tarih_str:
-                    c1.write(f"**Müşteri:** {ad_soyad_val}\n\n*📅 {tarih_str}*")
-                else:
-                    c1.write(f"**Müşteri:** {ad_soyad_val}")
-                    
-                c2.write(f"**Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
-                c3.write(f"**Tutar:** {tutar_val:.2f} TL")
-                
-                # Düzenleme Modu Durum Kontrolü
-                edit_key = f"edit_mode_{siparis_id}"
+                    try:
+                        tarih_dt = datetime.datetime.fromisoformat(tarih_str).date()
+                        if baslangic <= tarih_dt <= bitis:
+                            yeni_liste.append(item)
+                    except Exception:
+                        yeni_liste.append(item)
+            filtreli_siparisler = yeni_liste
+
+        # Liste Kartları Gösterimi
+        if filtreli_siparisler:
+            st.caption(f"Toplam {len(filtreli_siparisler)} kayıt listeleniyor.")
+            
+            for k in filtreli_siparisler:
+                siparis_id = k.get("id")
+                ad = (
+                    k.get("ad_soyad") or 
+                    k.get("musteri_adi") or 
+                    k.get("musteri") or 
+                    k.get("ad") or 
+                    k.get("name") or "İsimsiz Müşteri"
+                )
+                en_val = float(k.get("en", 0))
+                boy_val = float(k.get("boy", 0))
+                tutar_val = float(k.get("tutar", 0))
+                m2_val = en_val * boy_val
+                tarih_raw = k.get("tarih", "")
+
+                tarih_formatted = ""
+                if tarih_raw:
+                    try:
+                        dt = datetime.datetime.fromisoformat(tarih_raw)
+                        tarih_formatted = dt.strftime("%d.%m.%Y %H:%M")
+                    except Exception:
+                        tarih_formatted = tarih_raw
+
+                edit_key = f"edit_{siparis_id}"
                 if edit_key not in st.session_state:
                     st.session_state[edit_key] = False
 
-                if c4.button("✏️", key=f"btn_edit_{siparis_id}", help="Düzenle"):
-                    st.session_state[edit_key] = not st.session_state[edit_key]
+                with st.container(border=True):
+                    if not st.session_state[edit_key]:
+                        c1, c2, c3, c4, c5 = st.columns([3, 3, 2, 0.5, 0.5])
+                        with c1:
+                            st.markdown(f"**Müşteri:** {ad}")
+                            if tarih_formatted:
+                                st.caption(f"📅 {tarih_formatted}")
+                        with c2:
+                            st.markdown(f"**Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
+                        with c3:
+                            st.markdown(f"**Tutar:** {tutar_val:.2f} TL")
+                        with c4:
+                            if st.button("✏️", key=f"btn_edit_{siparis_id}"):
+                                st.session_state[edit_key] = True
+                                st.rerun()
+                        with c5:
+                            if st.button("🗑️", key=f"btn_del_{siparis_id}"):
+                                try:
+                                    supabase.table("siparisler").delete().eq("id", siparis_id).execute()
+                                    st.success("Kayıt silindi.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Silinemedi: {e}")
+                    else:
+                        st.markdown(f"**Düzenleniyor:** {ad}")
+                        with st.form(f"form_edit_{siparis_id}"):
+                            yeni_ad = st.text_input("Müşteri Adı Soyadı", value=ad)
+                            e_col1, e_col2 = st.columns(2)
+                            yeni_en = e_col1.number_input("En (m)", min_value=0.0, value=en_val, step=0.01)
+                            yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
+                            yeni_tutar = st.number_input("Tutar (TL)", min_value=0.0, value=tutar_val, step=10.0)
 
-                if c5.button("🗑️", key=f"sil_{siparis_id}", help="Sil"):
-                    supabase.table("siparisler").delete().eq("id", siparis_id).execute()
-                    st.success("Kayıt silindi!")
-                    st.rerun()
-
-                # Düzenleme Formu
-                if st.session_state[edit_key]:
-                    with st.form(key=f"form_edit_{siparis_id}"):
-                        yeni_ad = st.text_input("Müşteri Ad Soyad", value=ad_soyad_val)
-                        col_e, col_b = st.columns(2)
-                        yeni_en = col_e.number_input("En (m)", value=float(en_val), step=0.01)
-                        yeni_boy = col_b.number_input("Boy (m)", value=float(boy_val), step=0.01)
-                        yeni_tutar = st.number_input("Tutar (TL)", value=float(tutar_val), step=10.0)
-                        
-                        if st.form_submit_button("Kaydet ve Güncelle"):
-                            update_data = {"en": yeni_en, "boy": yeni_boy, "tutar": yeni_tutar}
-                            
-                            # Mevcut kayıttaki isim sütunu tespit edilirse onu güncelle
-                            for key in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
-                                if key in k:
-                                    update_data[key] = yeni_ad
-                                    break
-
-                            supabase.table("siparisler").update(update_data).eq("id", siparis_id).execute()
-                            st.session_state[edit_key] = False
-                            st.success("Müşteri bilgileri başarıyla güncellendi!")
-                            st.rerun()
+                            f_c1, f_c2 = st.columns(2)
+                            with f_c1:
+                                if st.form_submit_button("Kaydet ve Güncelle"):
+                                    up_data = {"en": yeni_en, "boy": yeni_boy, "tutar": yeni_tutar}
+                                    for key_name in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
+                                        if key_name in k:
+                                            up_data[key_name] = yeni_ad
+                                            break
+                                    try:
+                                        supabase.table("siparisler").update(up_data).eq("id", siparis_id).execute()
+                                        st.session_state[edit_key] = False
+                                        st.success("Başarıyla güncellendi!")
+                                        st.rerun()
+                                    except Exception as ex:
+                                        st.error(f"Güncellenemedi: {ex}")
+                            with f_c2:
+                                if st.form_submit_button("İptal"):
+                                    st.session_state[edit_key] = False
+                                    st.rerun()
+        else:
+            st.warning("Arama veya filtre kriterlerine uygun sipariş bulunamadı.")
     else:
-        st.info("Henüz kayıtlı sipariş bulunmuyor.")
+        st.info("Henüz kayıtlı bir sipariş bulunmuyor.")
 
 except Exception as e:
     st.error(f"Veri çekilirken bir hata oluştu: {e}")
