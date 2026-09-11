@@ -77,7 +77,7 @@ with st.form("siparis_formu", clear_on_submit=True):
     col1, col2, col3 = st.columns(3)
     en = col1.number_input("En (m)", min_value=0.0, step=0.01)
     boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
-    m2_fiyat = col3.number_input("Metrekare Fiyatı (TL)", min_value=0.0, step=100.0)
+    m2_fiyat = col3.number_input("Metrekare Fiyatı (TL)", min_value=0.0, step=100.0, format="%.2f")
 
     # Otomatik Toplam Tutar ve m² Hesaplama
     hesaplanan_m2 = en * boy
@@ -250,7 +250,7 @@ try:
                             yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
                             
                             varsayilan_m2_fiyat = (tutar_val / (en_val * boy_val)) if (en_val * boy_val) > 0 else 0.0
-                            yeni_m2_fiyat = e_col3.number_input("Metrekare Fiyatı (TL)", min_value=0.0, value=float(varsayilan_m2_fiyat), step=100.0)
+                            yeni_m2_fiyat = e_col3.number_input("Metrekare Fiyatı (TL)", min_value=0.0, value=float(varsayilan_m2_fiyat), step=100.0, format="%.2f")
 
                             yeni_hesaplanan_tutar = yeni_en * yeni_boy * yeni_m2_fiyat
                             st.caption(f"Yeni Toplam Tutar: {yeni_hesaplanan_tutar:,.0f}".replace(",", ".") + " TL")
