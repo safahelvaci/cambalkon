@@ -100,11 +100,14 @@ if "m2_fiyat_input" not in st.session_state:
 # --- MÜŞTERİ / SİPARİŞ EKLEME FORMU ---
 st.header("Yeni Sipariş Ekle")
 
+# Müşteri Adı Soyadı En, Boy ve Fiyatın Üstüne Taşındı
+ad_soyad = st.text_input("Müşteri Adı Soyadı")
+
 col1, col2, col3 = st.columns(3)
 en = col1.number_input("En (m)", min_value=0.0, step=0.01)
 boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
 
-# Metrekare Fiyatı Kutusu (Kullanıcı girdikçe/çıktıkça otomatik 1.300 yapar)
+# Metrekare Fiyatı Kutusu
 m2_fiyat_str = col3.text_input(
     "Metrekare Fiyatı (TL)", 
     key="m2_fiyat_input", 
@@ -123,7 +126,6 @@ if en > 0 and boy > 0 and m2_fiyat > 0:
     st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💵 **m² Fiyatı:** {m2_fiyat_yazi} TL | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
 
 with st.form("siparis_formu", clear_on_submit=True):
-    ad_soyad = st.text_input("Müşteri Adı Soyadı")
     submit = st.form_submit_button("Siparişi Kaydet")
 
     if submit:
