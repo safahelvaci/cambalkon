@@ -90,7 +90,7 @@ def m2_fiyat_formatla():
     if sayi > 0:
         st.session_state["m2_fiyat_input"] = format_tam_tl(sayi)
 
-# Session State Ilk Tanımlama
+# Session State İlk Tanımlama
 if "m2_fiyat_input" not in st.session_state:
     st.session_state["m2_fiyat_input"] = ""
 
@@ -280,23 +280,23 @@ try:
                                 st.markdown("🟢 **Ödeme Tamamlandı (Borcu Yok)**")
 
                         with c3:
-                            if kalan_val > 0:
-                                with st.expander("💳 Ödeme / Taksit Ekle"):
-                                    with st.form(f"odeme_form_{siparis_id}"):
-                                        yeni_odeme_str = st.text_input("Ödenen Tutar (TL)", key=f"pay_in_{siparis_id}")
-                                        
-                                        if st.form_submit_button("Ödemeyi Kaydet"):
-                                            yeni_odeme = metinden_tam_sayiya(yeni_odeme_str)
-                                            if yeni_odeme > 0:
-                                                guncel_odenen = odenen_val + yeni_odeme
-                                                try:
-                                                    supabase.table("siparisler").update({"odenen": guncel_odenen}).eq("id", siparis_id).execute()
-                                                    st.success(f"{format_tam_tl(yeni_odeme)} TL ödeme kaydedildi.")
-                                                    st.rerun()
-                                                except Exception as ex:
-                                                    st.error(f"Ödeme kaydedilemedi: {ex}")
-                                            else:
-                                                st.warning("Geçerli bir tutar giriniz.")
+                            with st.expander("💳 Ödeme / Taksit Ekle"):
+                                with st.form(f"odeme_form_{siparis_id}"):
+                                    yeni_odeme_str = st.text_input("Ödenen Tutar (TL)", key=f"pay_in_{siparis_id}")
+                                    odeme_tarihi = st.date_input("Ödeme Tarihi", value=datetime.date.today(), key=f"pay_date_{siparis_id}")
+                                    
+                                    if st.form_submit_button("Ödemeyi Kaydet"):
+                                        yeni_odeme = metinden_tam_sayiya(yeni_odeme_str)
+                                        if yeni_odeme > 0:
+                                            guncel_odenen = odenen_val + yeni_odeme
+                                            try:
+                                                supabase.table("siparisler").update({"odenen": guncel_odenen}).eq("id", siparis_id).execute()
+                                                st.success(f"{odeme_tarihi.strftime('%d.%m.%Y')} tarihinde {format_tam_tl(yeni_odeme)} TL ödeme kaydedildi.")
+                                                st.rerun()
+                                            except Exception as ex:
+                                                st.error(f"Ödeme kaydedilemedi: {ex}")
+                                        else:
+                                            st.warning("Geçerli bir tutar giriniz.")
 
                         with c4:
                             if st.button("✏️", key=f"btn_edit_{siparis_id}", help="Siparişi Düzenle"):
