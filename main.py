@@ -70,7 +70,7 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Metni Sayıya Çevirme Yardımcı Fonksiyonu (Noktaları temizler)
+# Metni Sayıya Çevirme Yardımcı Fonksiyonu
 def metinden_tam_sayiya(val_str):
     if not val_str:
         return 0
@@ -80,15 +80,11 @@ def metinden_tam_sayiya(val_str):
     except ValueError:
         return 0
 
-# Binlik Noktalı Tam Sayı Formatlama (Örn: 1200 -> 1.200 TL, Küsüratsız)
+# Binlik Noktalı Formatlama (Örn: 1200 -> 1.200)
 def format_tam_tl(sayi):
     if sayi <= 0:
-        return "0"
+        return ""
     return f"{int(round(sayi)):,.0f}".replace(",", ".")
-
-# Session State Hazırlığı
-if "m2_fiyat_input" not in st.session_state:
-    st.session_state["m2_fiyat_input"] = ""
 
 # --- MÜŞTERİ / SİPARİŞ EKLEME FORMU ---
 st.header("Yeni Sipariş Ekle")
@@ -98,11 +94,12 @@ with st.form("siparis_formu", clear_on_submit=True):
     en = col1.number_input("En (m)", min_value=0.0, step=0.01)
     boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
     
-    # Metrekare Fiyatı Metin Kutusu (Açıklama/Küsürat yok)
-    m2_fiyat_str = col3.text_input("Metrekare Fiyatı (TL)", value=st.session_state["m2_fiyat_input"])
+    # Metrekare Fiyatı Metin Kutusu
+    m2_fiyat_raw = col3.text_input("Metrekare Fiyatı (TL)")
 
-    # Metinden tam sayı fiyat alma
-    m2_fiyat = metinden_tam_sayiya(m2_fiyat_str)
+    # Girilen ham veriyi sayıya dönüştür ve binlik ayracı (nokta) ekleyerek formatla
+    m2_fiyat = metinden_tam_sayiya(m2_fiyat_raw)
+    m2_fiyat_yazi = format_tam_tl(m2_fiyat)
 
     # Otomatik Toplam Tutar ve m² Hesaplama
     hesaplanan_m2 = en * boy
@@ -110,7 +107,6 @@ with st.form("siparis_formu", clear_on_submit=True):
 
     if en > 0 and boy > 0 and m2_fiyat > 0:
         tutar_yazi = format_tam_tl(hesaplanan_tutar)
-        m2_fiyat_yazi = format_tam_tl(m2_fiyat)
         st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💵 **m² Fiyatı:** {m2_fiyat_yazi} TL | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
 
     submit = st.form_submit_button("Siparişi Kaydet")
@@ -133,7 +129,6 @@ with st.form("siparis_formu", clear_on_submit=True):
                         temp_data[col_name] = ad_soyad
                         supabase.table("siparisler").insert(temp_data).execute()
                         st.success(f"Sipariş başarıyla kaydedildi! (Toplam Tutar: {format_tam_tl(hesaplanan_tutar)} TL)")
-                        st.session_state["m2_fiyat_input"] = ""
                         st.rerun()
                         break
                     except Exception:
@@ -142,7 +137,6 @@ with st.form("siparis_formu", clear_on_submit=True):
                 try:
                     supabase.table("siparisler").insert(data).execute()
                     st.success("Sipariş kaydedildi.")
-                    st.session_state["m2_fiyat_input"] = ""
                     st.rerun()
                 except Exception as e:
                     st.error(f"Sipariş kaydedilemedi: {e}")
@@ -277,7 +271,7 @@ try:
                             yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
                             
                             varsayilan_m2_fiyat = (tutar_val / (en_val * boy_val)) if (en_val * boy_val) > 0 else 0
-                            varsayilan_m2_str = format_tam_tl(varsayilan_m2_fiyat) if varsayilan_m2_fiyat > 0 else ""
+                            varsayilan_m2_str = format_tam_tl(varsayilan_m2_fiyat)
                             
                             yeni_m2_fiyat_str = e_col3.text_input("Metrekare Fiyatı (TL)", value=varsayilan_m2_str)
 
