@@ -94,6 +94,10 @@ def m2_fiyat_formatla():
 if "m2_fiyat_input" not in st.session_state:
     st.session_state["m2_fiyat_input"] = ""
 
+# Renk Listeleri
+CAM_RENKLERI = ["Şeffaf", "Füme", "Mavi", "Yeşil", "Bronz"]
+ALUMINYUM_RENKLERI = ["Siyah", "Füme", "Beyaz", "Eloksal (Gri)", "Ahşap Desenli"]
+
 # --- MÜŞTERİ / SİPARİŞ EKLEME FORMU ---
 st.header("Yeni Sipariş Ekle")
 
@@ -108,6 +112,11 @@ m2_fiyat_str = col3.text_input(
     key="m2_fiyat_input", 
     on_change=m2_fiyat_formatla
 )
+
+# Renk Seçenekleri Kutuları
+r_col1, r_col2 = st.columns(2)
+cam_rengi = r_col1.selectbox("🎨 Cam Rengi", CAM_RENKLERI)
+aluminyum_rengi = r_col2.selectbox("🖌️ Alüminyum Rengi", ALUMINYUM_RENKLERI)
 
 m2_fiyat = metinden_tam_sayiya(m2_fiyat_str)
 
@@ -131,6 +140,8 @@ with st.form("siparis_formu", clear_on_submit=True):
                 "boy": boy,
                 "tutar": round(hesaplanan_tutar),
                 "odenen": 0,
+                "cam_rengi": cam_rengi,
+                "aluminyum_rengi": aluminyum_rengi,
                 "tarih": now_turkey
             }
 
@@ -231,6 +242,9 @@ try:
                 boy_val = float(k.get("boy", 0))
                 tutar_val = float(k.get("tutar", 0))
                 odenen_val = float(k.get("odenen", 0) or 0)
+                cam_val = k.get("cam_rengi", "Belirtilmedi")
+                alum_val = k.get("aluminyum_rengi", "Belirtilmedi")
+                
                 kalan_val = tutar_val - odenen_val
                 m2_val = en_val * boy_val
                 tarih_raw = k.get("tarih", "")
@@ -255,6 +269,7 @@ try:
                             if tarih_formatted:
                                 st.caption(f"📅 Sipariş Tarihi: {tarih_formatted}")
                             st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
+                            st.markdown(f"🎨 **Cam:** {cam_val} | 🖌️ **Alüminyum:** {alum_val}")
 
                         with c2:
                             st.markdown(f"💵 **Toplam Borç:** {format_tam_tl(tutar_val)} TL")
@@ -311,6 +326,11 @@ try:
                             
                             yeni_m2_fiyat_str = e_col3.text_input("Metrekare Fiyatı (TL)", value=varsayilan_m2_str)
 
+                            # Düzenlemedeki Renk Seçimleri
+                            er_col1, er_col2 = st.columns(2)
+                            yeni_cam = er_col1.selectbox("🎨 Cam Rengi", CAM_RENKLERI, index=CAM_RENKLERI.index(cam_val) if cam_val in CAM_RENKLERI else 0)
+                            yeni_alum = er_col2.selectbox("🖌️ Alüminyum Rengi", ALUMINYUM_RENKLERI, index=ALUMINYUM_RENKLERI.index(alum_val) if alum_val in ALUMINYUM_RENKLERI else 0)
+
                             yeni_m2_fiyat = metinden_tam_sayiya(yeni_m2_fiyat_str)
                             yeni_hesaplanan_tutar = yeni_en * yeni_boy * yeni_m2_fiyat
                             st.caption(f"Yeni Toplam Tutar: {format_tam_tl(yeni_hesaplanan_tutar)} TL")
@@ -318,7 +338,13 @@ try:
                             f_c1, f_c2 = st.columns(2)
                             with f_c1:
                                 if st.form_submit_button("Kaydet ve Güncelle"):
-                                    up_data = {"en": yeni_en, "boy": yeni_boy, "tutar": round(yeni_hesaplanan_tutar)}
+                                    up_data = {
+                                        "en": yeni_en, 
+                                        "boy": yeni_boy, 
+                                        "tutar": round(yeni_hesaplanan_tutar),
+                                        "cam_rengi": yeni_cam,
+                                        "aluminyum_rengi": yeni_alum
+                                    }
                                     for key_name in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
                                         if key_name in k:
                                             up_data[key_name] = yeni_ad
