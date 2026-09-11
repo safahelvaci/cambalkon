@@ -247,8 +247,9 @@ try:
                 
                 kalan_val = tutar_val - odenen_val
                 m2_val = en_val * boy_val
-                tarih_raw = k.get("tarih", "")
+                m2_birim_fiyat = (tutar_val / m2_val) if m2_val > 0 else 0
 
+                tarih_raw = k.get("tarih", "")
                 tarih_formatted = ""
                 if tarih_raw:
                     try:
@@ -269,6 +270,7 @@ try:
                             if tarih_formatted:
                                 st.caption(f"📅 Sipariş Tarihi: {tarih_formatted}")
                             st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
+                            st.markdown(f"💵 **m² Fiyatı:** {format_tam_tl(m2_birim_fiyat)} TL")
                             st.markdown(f"🎨 **Cam:** {cam_val} | 🖌️ **Alüminyum:** {alum_val}")
 
                         with c2:
@@ -321,9 +323,7 @@ try:
                             yeni_en = e_col1.number_input("En (m)", min_value=0.0, value=en_val, step=0.01)
                             yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
                             
-                            varsayilan_m2_fiyat = (tutar_val / (en_val * boy_val)) if (en_val * boy_val) > 0 else 0
-                            varsayilan_m2_str = format_tam_tl(varsayilan_m2_fiyat)
-                            
+                            varsayilan_m2_str = format_tam_tl(m2_birim_fiyat)
                             yeni_m2_fiyat_str = e_col3.text_input("Metrekare Fiyatı (TL)", value=varsayilan_m2_str)
 
                             # Düzenlemedeki Renk Seçimleri
