@@ -2,6 +2,7 @@ import streamlit as st
 from supabase import create_client, Client
 import datetime
 import zoneinfo
+import uuid
 
 # Streamlit Sayfa Ayarları
 st.set_page_config(page_title="Cam Balkon Sipariş Takip", layout="wide")
@@ -90,6 +91,27 @@ def m2_fiyat_formatla():
     if sayi > 0:
         st.session_state["m2_fiyat_input"] = format_tam_tl(sayi)
 
+# Resim Yükleme Yardımcı Fonksiyonu
+def resim_yukle(yuklenen_dosya):
+    if yuklenen_dosya is not None:
+        try:
+            dosya_uzantisi = yuklenen_dosya.name.split(".")[-1]
+            benzersiz_isim = f"{uuid.uuid4()}.{dosya_uzantisi}"
+            dosya_baytlari = yuklenen_dosya.getvalue()
+            
+            supabase.storage.from_("resimler").upload(
+                file=dosya_baytlari,
+                path=benzersiz_isim,
+                file_options={"content-type": yuklenen_dosya.type}
+            )
+            
+            resim_url = supabase.storage.from_("resimler").get_public_url(benzersiz_isim)
+            return resim_url
+        except Exception as e:
+            st.error(f"Resim yüklenirken hata oluştu: {e}")
+            return None
+    return None
+
 # Session State İlk Tanımlama
 if "m2_fiyat_input" not in st.session_state:
     st.session_state["m2_fiyat_input"] = ""
@@ -118,6 +140,9 @@ r_col1, r_col2 = st.columns(2)
 cam_rengi = r_col1.selectbox("🎨 Cam Rengi", CAM_RENKLERI)
 aluminyum_rengi = r_col2.selectbox("🖌️ Alüminyum Rengi", ALUMINYUM_RENKLERI)
 
+# Proje / Ölçü Çizimi Resim Yükleme
+proje_resmi = st.file_uploader("🖼️ Proje / Ölçü Çizimi Ekle (İsteğe Bağlı)", type=["png", "jpg", "jpeg"])
+
 m2_fiyat = metinden_tam_sayiya(m2_fiyat_str)
 
 hesaplanan_m2 = en * boy
@@ -134,6 +159,8 @@ with st.form("siparis_formu", clear_on_submit=True):
     if submit:
         if en > 0 and boy > 0 and m2_fiyat > 0:
             now_turkey = datetime.datetime.now(zoneinfo.ZoneInfo("Europe/Istanbul")).isoformat()
+            
+            resim_url = resim_yukle(proje_resmi)
 
             data = {
                 "en": en,
@@ -142,7 +169,8 @@ with st.form("siparis_formu", clear_on_submit=True):
                 "odenen": 0,
                 "cam_rengi": cam_rengi,
                 "aluminyum_rengi": aluminyum_rengi,
-                "tarih": now_turkey
+                "tarih": now_turkey,
+                "resim_url": resim_url
             }
 
             if ad_soyad:
@@ -244,6 +272,7 @@ try:
                 odenen_val = float(k.get("odenen", 0) or 0)
                 cam_val = k.get("cam_rengi", "Belirtilmedi")
                 alum_val = k.get("aluminyum_rengi", "Belirtilmedi")
+                resim_url_val = k.get("resim_url")
                 
                 kalan_val = tutar_val - odenen_val
                 m2_val = en_val * boy_val
@@ -275,6 +304,11 @@ try:
                             st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
                             st.markdown(f"💵 **m² Fiyatı:** {format_tam_tl(m2_birim_fiyat)} TL")
                             st.markdown(f"🎨 **Cam:** {cam_val} | 🖌️ **Alüminyum:** {alum_val}")
+                            
+                            # Yüklenmiş Proje Resmi Varsa Göster
+                            if resim_url_val:
+                                st.markdown("**📐 Proje Çizimi:**")
+                                st.image(resim_url_val, use_container_width=True)
 
                         with c2:
                             st.markdown(f"💵 **Toplam Borç:** {format_tam_tl(tutar_val)} TL")
@@ -333,6 +367,8 @@ try:
                             yeni_cam = er_col1.selectbox("🎨 Cam Rengi", CAM_RENKLERI, index=CAM_RENKLERI.index(cam_val) if cam_val in CAM_RENKLERI else 0)
                             yeni_alum = er_col2.selectbox("🖌️ Alüminyum Rengi", ALUMINYUM_RENKLERI, index=ALUMINYUM_RENKLERI.index(alum_val) if alum_val in ALUMINYUM_RENKLERI else 0)
 
+                            yeni_proje_resmi = st.file_uploader("🖼️ Yeni Proje Resmi Yükle", type=["png", "jpg", "jpeg"], key=f"edit_img_{siparis_id}")
+
                             yeni_m2_fiyat = metinden_tam_sayiya(yeni_m2_fiyat_str)
                             yeni_hesaplanan_tutar = yeni_en * yeni_boy * yeni_m2_fiyat
                             st.caption(f"Yeni Toplam Tutar: {format_tam_tl(yeni_hesaplanan_tutar)} TL")
@@ -347,6 +383,12 @@ try:
                                         "cam_rengi": yeni_cam,
                                         "aluminyum_rengi": yeni_alum
                                     }
+                                    
+                                    if yeni_proje_resmi:
+                                        yeni_url = resim_yukle(yeni_proje_resmi)
+                                        if yeni_url:
+                                            up_data["resim_url"] = yeni_url
+
                                     for key_name in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
                                         if key_name in k:
                                             up_data[key_name] = yeni_ad
