@@ -77,7 +77,9 @@ with st.form("siparis_formu", clear_on_submit=True):
     col1, col2, col3 = st.columns(3)
     en = col1.number_input("En (m)", min_value=0.0, step=0.01)
     boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
-    m2_fiyat = col3.number_input("Metrekare Fiyatı (TL)", min_value=0.0, step=100.0, format="%.2f")
+    
+    # Tam sayı formatıyla ondalık sıfırlar (,00) kaldırıldı
+    m2_fiyat = col3.number_input("Metrekare Fiyatı (TL)", min_value=0, value=1200, step=100, format="%d")
 
     # Otomatik Toplam Tutar ve m² Hesaplama
     hesaplanan_m2 = en * boy
@@ -85,7 +87,8 @@ with st.form("siparis_formu", clear_on_submit=True):
 
     if en > 0 and boy > 0 and m2_fiyat > 0:
         tutar_yazi = f"{hesaplanan_tutar:,.0f}".replace(",", ".")
-        st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
+        m2_fiyat_yazi = f"{m2_fiyat:,.0f}".replace(",", ".")
+        st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💵 **m² Fiyatı:** {m2_fiyat_yazi} TL | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
 
     submit = st.form_submit_button("Siparişi Kaydet")
 
@@ -249,8 +252,8 @@ try:
                             yeni_en = e_col1.number_input("En (m)", min_value=0.0, value=en_val, step=0.01)
                             yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
                             
-                            varsayilan_m2_fiyat = (tutar_val / (en_val * boy_val)) if (en_val * boy_val) > 0 else 0.0
-                            yeni_m2_fiyat = e_col3.number_input("Metrekare Fiyatı (TL)", min_value=0.0, value=float(varsayilan_m2_fiyat), step=100.0, format="%.2f")
+                            varsayilan_m2_fiyat = int((tutar_val / (en_val * boy_val))) if (en_val * boy_val) > 0 else 0
+                            yeni_m2_fiyat = e_col3.number_input("Metrekare Fiyatı (TL)", min_value=0, value=varsayilan_m2_fiyat, step=100, format="%d")
 
                             yeni_hesaplanan_tutar = yeni_en * yeni_boy * yeni_m2_fiyat
                             st.caption(f"Yeni Toplam Tutar: {yeni_hesaplanan_tutar:,.0f}".replace(",", ".") + " TL")
