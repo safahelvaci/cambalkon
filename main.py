@@ -70,14 +70,21 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 
-# Formatlama Yardımcı Fonksiyonu
-def format_binlik(deger_str):
-    """Girilen ham sayıyı noktalı binlik formata çevirir (Örn: 12000 -> 12.000)"""
-    temiz_metin = str(deger_str).replace(".", "").replace(",", "").strip()
-    if temiz_metin.isdigit():
-        sayi = int(temiz_metin)
-        return f"{sayi:,.0f}".replace(",", ".")
-    return deger_str
+# Metni Sayıya Çevirme Yardımcı Fonksiyonu (Noktaları temizler)
+def metinden_tam_sayiya(val_str):
+    if not val_str:
+        return 0
+    temiz = str(val_str).replace(".", "").replace(",", "").strip()
+    try:
+        return int(float(temiz))
+    except ValueError:
+        return 0
+
+# Binlik Noktalı Tam Sayı Formatlama (Örn: 1200 -> 1.200 TL, Küsüratsız)
+def format_tam_tl(sayi):
+    if sayi <= 0:
+        return "0"
+    return f"{int(round(sayi)):,.0f}".replace(",", ".")
 
 # Session State Hazırlığı
 if "m2_fiyat_input" not in st.session_state:
@@ -91,26 +98,20 @@ with st.form("siparis_formu", clear_on_submit=True):
     en = col1.number_input("En (m)", min_value=0.0, step=0.01)
     boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
     
-    # Dinamik noktalı biçimlendiren metin kutusu
-    m2_fiyat_str = col3.text_input("Metrekare Fiyatı (TL)", value=st.session_state["m2_fiyat_input"], placeholder="Örn: 1200 veya 12000")
+    # Metrekare Fiyatı Metin Kutusu (Açıklama/Küsürat yok)
+    m2_fiyat_str = col3.text_input("Metrekare Fiyatı (TL)", value=st.session_state["m2_fiyat_input"])
 
-    # Girilen değeri temizleyip sayısal formata çevirme
-    temiz_fiyat = m2_fiyat_str.replace(".", "").replace(",", ".").strip()
-    try:
-        m2_fiyat = float(temiz_fiyat) if temiz_fiyat else 0.0
-    except ValueError:
-        m2_fiyat = 0.0
-
-    # Yazılan sayının binlik noktalı gösterimi (Örn: 12000 yazılırsa 12.000)
-    m2_fiyat_formatted = f"{m2_fiyat:,.0f}".replace(",", ".") if m2_fiyat > 0 else ""
+    # Metinden tam sayı fiyat alma
+    m2_fiyat = metinden_tam_sayiya(m2_fiyat_str)
 
     # Otomatik Toplam Tutar ve m² Hesaplama
     hesaplanan_m2 = en * boy
     hesaplanan_tutar = hesaplanan_m2 * m2_fiyat
 
     if en > 0 and boy > 0 and m2_fiyat > 0:
-        tutar_yazi = f"{hesaplanan_tutar:,.0f}".replace(",", ".")
-        st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💵 **m² Fiyatı:** {m2_fiyat_formatted} TL | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
+        tutar_yazi = format_tam_tl(hesaplanan_tutar)
+        m2_fiyat_yazi = format_tam_tl(m2_fiyat)
+        st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💵 **m² Fiyatı:** {m2_fiyat_yazi} TL | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
 
     submit = st.form_submit_button("Siparişi Kaydet")
 
@@ -121,7 +122,7 @@ with st.form("siparis_formu", clear_on_submit=True):
             data = {
                 "en": en,
                 "boy": boy,
-                "tutar": hesaplanan_tutar,
+                "tutar": round(hesaplanan_tutar),
                 "tarih": now_turkey
             }
 
@@ -131,7 +132,7 @@ with st.form("siparis_formu", clear_on_submit=True):
                         temp_data = data.copy()
                         temp_data[col_name] = ad_soyad
                         supabase.table("siparisler").insert(temp_data).execute()
-                        st.success(f"Sipariş başarıyla kaydedildi! (Toplam Tutar: {tutar_yazi} TL)")
+                        st.success(f"Sipariş başarıyla kaydedildi! (Toplam Tutar: {format_tam_tl(hesaplanan_tutar)} TL)")
                         st.session_state["m2_fiyat_input"] = ""
                         st.rerun()
                         break
@@ -204,7 +205,7 @@ try:
             toplam_tutar = sum(float(k.get("tutar", 0)) for k in filtreli_siparisler)
             toplam_m2 = sum(float(k.get("en", 0)) * float(k.get("boy", 0)) for k in filtreli_siparisler)
             
-            toplam_tutar_formatted = f"{toplam_tutar:,.0f}".replace(",", ".")
+            toplam_tutar_formatted = format_tam_tl(toplam_tutar)
             toplam_m2_formatted = f"{toplam_m2:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
             # Özet Bilgi Kartları
@@ -230,7 +231,7 @@ try:
                 m2_val = en_val * boy_val
                 tarih_raw = k.get("tarih", "")
 
-                tutar_formatted = f"{tutar_val:,.0f}".replace(",", ".")
+                tutar_formatted = format_tam_tl(tutar_val)
 
                 tarih_formatted = ""
                 if tarih_raw:
@@ -275,23 +276,20 @@ try:
                             yeni_en = e_col1.number_input("En (m)", min_value=0.0, value=en_val, step=0.01)
                             yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
                             
-                            varsayilan_m2_fiyat = (tutar_val / (en_val * boy_val)) if (en_val * boy_val) > 0 else 0.0
-                            varsayilan_m2_str = f"{varsayilan_m2_fiyat:,.0f}".replace(",", ".") if varsayilan_m2_fiyat > 0 else ""
+                            varsayilan_m2_fiyat = (tutar_val / (en_val * boy_val)) if (en_val * boy_val) > 0 else 0
+                            varsayilan_m2_str = format_tam_tl(varsayilan_m2_fiyat) if varsayilan_m2_fiyat > 0 else ""
                             
                             yeni_m2_fiyat_str = e_col3.text_input("Metrekare Fiyatı (TL)", value=varsayilan_m2_str)
 
-                            try:
-                                yeni_m2_fiyat = float(yeni_m2_fiyat_str.replace(".", "").replace(",", ".").strip()) if yeni_m2_fiyat_str else 0.0
-                            except ValueError:
-                                yeni_m2_fiyat = 0.0
+                            yeni_m2_fiyat = metinden_tam_sayiya(yeni_m2_fiyat_str)
 
                             yeni_hesaplanan_tutar = yeni_en * yeni_boy * yeni_m2_fiyat
-                            st.caption(f"Yeni Toplam Tutar: {yeni_hesaplanan_tutar:,.0f}".replace(",", ".") + " TL")
+                            st.caption(f"Yeni Toplam Tutar: {format_tam_tl(yeni_hesaplanan_tutar)} TL")
 
                             f_c1, f_c2 = st.columns(2)
                             with f_c1:
                                 if st.form_submit_button("Kaydet ve Güncelle"):
-                                    up_data = {"en": yeni_en, "boy": yeni_boy, "tutar": yeni_hesaplanan_tutar}
+                                    up_data = {"en": yeni_en, "boy": yeni_boy, "tutar": round(yeni_hesaplanan_tutar)}
                                     for key_name in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
                                         if key_name in k:
                                             up_data[key_name] = yeni_ad
