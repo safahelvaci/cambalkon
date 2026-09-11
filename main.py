@@ -262,11 +262,14 @@ try:
                 if edit_key not in st.session_state:
                     st.session_state[edit_key] = False
 
-                with st.container(border=True):
+                # Sadece İsim Gösteren ve Tıklanınca Açılan Yapı (Expander)
+                bakiye_durumu = f"🔴 Kalan: {format_tam_tl(kalan_val)} TL" if kalan_val > 0 else "🟢 Borcu Yok"
+                expander_label = f"👤 {ad}   |   {bakiye_durumu}"
+
+                with st.expander(expander_label, expanded=False):
                     if not st.session_state[edit_key]:
                         c1, c2, c3, c4, c5 = st.columns([3, 2.5, 3, 0.5, 0.5])
                         with c1:
-                            st.markdown(f"### 👤 {ad}")
                             if tarih_formatted:
                                 st.caption(f"📅 Sipariş Tarihi: {tarih_formatted}")
                             st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
@@ -282,7 +285,7 @@ try:
                                 st.markdown("🟢 **Ödeme Tamamlandı (Borcu Yok)**")
 
                         with c3:
-                            with st.expander("💳 Ödeme / Taksit Ekle"):
+                            with st.popover("💳 Ödeme / Taksit Ekle"):
                                 with st.form(f"odeme_form_{siparis_id}"):
                                     yeni_odeme_str = st.text_input("Ödenen Tutar (TL)", key=f"pay_in_{siparis_id}")
                                     odeme_tarihi = st.date_input("Ödeme Tarihi", value=datetime.date.today(), key=f"pay_date_{siparis_id}")
@@ -326,7 +329,6 @@ try:
                             varsayilan_m2_str = format_tam_tl(m2_birim_fiyat)
                             yeni_m2_fiyat_str = e_col3.text_input("Metrekare Fiyatı (TL)", value=varsayilan_m2_str)
 
-                            # Düzenlemedeki Renk Seçimleri
                             er_col1, er_col2 = st.columns(2)
                             yeni_cam = er_col1.selectbox("🎨 Cam Rengi", CAM_RENKLERI, index=CAM_RENKLERI.index(cam_val) if cam_val in CAM_RENKLERI else 0)
                             yeni_alum = er_col2.selectbox("🖌️ Alüminyum Rengi", ALUMINYUM_RENKLERI, index=ALUMINYUM_RENKLERI.index(alum_val) if alum_val in ALUMINYUM_RENKLERI else 0)
