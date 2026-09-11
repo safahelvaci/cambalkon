@@ -318,6 +318,29 @@ try:
                             else:
                                 st.markdown("🟢 **Ödeme Tamamlandı (Borcu Yok)**")
 
+                            # --- ÖDEME GEÇMİŞİ LİSTELEME ---
+                            st.markdown("---")
+                            st.markdown("**📜 Ödeme Geçmişi:**")
+                            try:
+                                odeme_res = supabase.table("odemeler").select("*").eq("siparis_id", siparis_id).order("tarih", desc=True).execute()
+                                odeme_listesi = odeme_res.data
+                                if odeme_listesi:
+                                    for od in odeme_listesi:
+                                        o_tutar = float(od.get("tutar", 0))
+                                        o_tarih_raw = od.get("tarih", "")
+                                        o_tarih_fmt = ""
+                                        if o_tarih_raw:
+                                            try:
+                                                o_dt = datetime.datetime.fromisoformat(o_tarih_raw)
+                                                o_tarih_fmt = o_dt.strftime("%d.%m.%Y")
+                                            except Exception:
+                                                o_tarih_fmt = o_tarih_raw
+                                        st.caption(f"• **{o_tarih_fmt}:** {format_tam_tl(o_tutar)} TL")
+                                else:
+                                    st.caption("Henüz yapılmış bir ödeme kaydı yok.")
+                            except Exception:
+                                st.caption("Ödeme geçmişi yüklenemedi.")
+
                         with c3:
                             with st.popover("💳 Ödeme / Taksit Ekle"):
                                 with st.form(f"odeme_form_{siparis_id}"):
@@ -328,8 +351,19 @@ try:
                                         yeni_odeme = metinden_tam_sayiya(yeni_odeme_str)
                                         if yeni_odeme > 0:
                                             guncel_odenen = odenen_val + yeni_odeme
+                                            secilen_odeme_tarihi = datetime.datetime.combine(odeme_tarihi, datetime.time(12, 0)).isoformat()
+                                            
                                             try:
+                                                # 1. Toplam ödenen tutarı siparişler tablosunda güncelle
                                                 supabase.table("siparisler").update({"odenen": guncel_odenen}).eq("id", siparis_id).execute()
+                                                
+                                                # 2. Ödeme detayını odemeler tablosuna ekle
+                                                supabase.table("odemeler").insert({
+                                                    "siparis_id": siparis_id,
+                                                    "tutar": yeni_odeme,
+                                                    "tarih": secilen_odeme_tarihi
+                                                }).execute()
+
                                                 st.success(f"{odeme_tarihi.strftime('%d.%m.%Y')} tarihinde {format_tam_tl(yeni_odeme)} TL ödeme kaydedildi.")
                                                 st.rerun()
                                             except Exception as ex:
