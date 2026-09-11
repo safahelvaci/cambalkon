@@ -116,14 +116,17 @@ def resim_yukle(yuklenen_dosya):
 if "m2_fiyat_input" not in st.session_state:
     st.session_state["m2_fiyat_input"] = ""
 
-# Renk Listeleri
+# Sabit Listeler
 CAM_RENKLERI = ["Şeffaf", "Füme", "Mavi", "Yeşil", "Bronz"]
 ALUMINYUM_RENKLERI = ["Siyah", "Füme", "Beyaz", "Eloksal (Gri)", "Ahşap Desenli"]
+SIPARIS_DURUMLARI = ["⏳ Beklemede", "✅ Onaylandı", "❌ İptal Edildi"]
 
 # --- MÜŞTERİ / SİPARİŞ EKLEME FORMU ---
 st.header("Yeni Sipariş Ekle")
 
-ad_soyad = st.text_input("Müşteri Adı Soyadı")
+col_ad, col_durum = st.columns([2, 1])
+ad_soyad = col_ad.text_input("Müşteri Adı Soyadı")
+siparis_durumu = col_durum.selectbox("📋 Sipariş Durumu", SIPARIS_DURUMLARI, index=0)
 
 col1, col2, col3 = st.columns(3)
 en = col1.number_input("En (m)", min_value=0.0, step=0.01)
@@ -170,7 +173,8 @@ with st.form("siparis_formu", clear_on_submit=True):
                 "cam_rengi": cam_rengi,
                 "aluminyum_rengi": aluminyum_rengi,
                 "tarih": now_turkey,
-                "resim_url": resim_url
+                "resim_url": resim_url,
+                "durum": siparis_durumu
             }
 
             if ad_soyad:
@@ -179,7 +183,7 @@ with st.form("siparis_formu", clear_on_submit=True):
                         temp_data = data.copy()
                         temp_data[col_name] = ad_soyad
                         supabase.table("siparisler").insert(temp_data).execute()
-                        st.success(f"Sipariş başarıyla kaydedildi! (Toplam Tutar: {format_tam_tl(hesaplanan_tutar)} TL)")
+                        st.success(f"Sipariş başarıyla kaydedildi! (Durum: {siparis_durumu} | Toplam Tutar: {format_tam_tl(hesaplanan_tutar)} TL)")
                         st.session_state["m2_fiyat_input"] = ""
                         st.rerun()
                         break
@@ -206,11 +210,13 @@ try:
     siparisler = response.data
 
     if siparisler:
-        f_col1, f_col2 = st.columns(2)
+        f_col1, f_col2, f_col3 = st.columns([2, 2, 1.5])
         with f_col1:
             arama_metni = st.text_input("🔍 Müşteri Adına Göre Ara", placeholder="Müşteri adı giriniz...")
         with f_col2:
             tarih_secimi = st.date_input("📅 Tarih Aralığı Seçin", value=(), help="Başlangıç ve bitiş tarihi seçin")
+        with f_col3:
+            durum_filtresi = st.selectbox("📋 Duruma Göre Filtrele", ["Tümü"] + SIPARIS_DURUMLARI)
 
         filtreli_siparisler = siparisler.copy()
 
@@ -228,6 +234,9 @@ try:
                 if arama_kucuk in isim:
                     yeni_liste.append(item)
             filtreli_siparisler = yeni_liste
+
+        if durum_filtresi != "Tümü":
+            filtreli_siparisler = [item for item in filtreli_siparisler if item.get("durum") == durum_filtresi]
 
         if len(tarih_secimi) == 2:
             baslangic, bitis = tarih_secimi
@@ -273,6 +282,7 @@ try:
                 cam_val = k.get("cam_rengi", "Belirtilmedi")
                 alum_val = k.get("aluminyum_rengi", "Belirtilmedi")
                 resim_url_val = k.get("resim_url")
+                durum_val = k.get("durum", "⏳ Beklemede")
                 
                 kalan_val = tutar_val - odenen_val
                 m2_val = en_val * boy_val
@@ -291,9 +301,9 @@ try:
                 if edit_key not in st.session_state:
                     st.session_state[edit_key] = False
 
-                # Sadece İsim Gösteren ve Tıklanınca Açılan Yapı (Expander)
+                # Durum ve Bakiye Bilgisi İçeren Başlık
                 bakiye_durumu = f"🔴 Kalan: {format_tam_tl(kalan_val)} TL" if kalan_val > 0 else "🟢 Borcu Yok"
-                expander_label = f"👤 {ad}   |   {bakiye_durumu}"
+                expander_label = f"👤 {ad}   |   [{durum_val}]   |   {bakiye_durumu}"
 
                 with st.expander(expander_label, expanded=False):
                     if not st.session_state[edit_key]:
@@ -301,6 +311,7 @@ try:
                         with c1:
                             if tarih_formatted:
                                 st.caption(f"📅 Sipariş Tarihi: {tarih_formatted}")
+                            st.markdown(f"📋 **Sipariş Durumu:** `{durum_val}`")
                             st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
                             st.markdown(f"💵 **m² Fiyatı:** {format_tam_tl(m2_birim_fiyat)} TL")
                             st.markdown(f"🎨 **Cam:** {cam_val} | 🖌️ **Alüminyum:** {alum_val}")
@@ -354,10 +365,7 @@ try:
                                             secilen_odeme_tarihi = datetime.datetime.combine(odeme_tarihi, datetime.time(12, 0)).isoformat()
                                             
                                             try:
-                                                # 1. Toplam ödenen tutarı siparişler tablosunda güncelle
                                                 supabase.table("siparisler").update({"odenen": guncel_odenen}).eq("id", siparis_id).execute()
-                                                
-                                                # 2. Ödeme detayını odemeler tablosuna ekle
                                                 supabase.table("odemeler").insert({
                                                     "siparis_id": siparis_id,
                                                     "tutar": yeni_odeme,
@@ -390,6 +398,9 @@ try:
                         st.markdown(f"**Düzenleniyor:** {ad}")
                         with st.form(f"form_edit_{siparis_id}"):
                             yeni_ad = st.text_input("Müşteri Adı Soyadı", value=ad)
+                            
+                            yeni_durum = st.selectbox("📋 Sipariş Durumu", SIPARIS_DURUMLARI, index=SIPARIS_DURUMLARI.index(durum_val) if durum_val in SIPARIS_DURUMLARI else 0)
+
                             e_col1, e_col2, e_col3 = st.columns(3)
                             yeni_en = e_col1.number_input("En (m)", min_value=0.0, value=en_val, step=0.01)
                             yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
@@ -415,7 +426,8 @@ try:
                                         "boy": yeni_boy, 
                                         "tutar": round(yeni_hesaplanan_tutar),
                                         "cam_rengi": yeni_cam,
-                                        "aluminyum_rengi": yeni_alum
+                                        "aluminyum_rengi": yeni_alum,
+                                        "durum": yeni_durum
                                     }
                                     
                                     if yeni_proje_resmi:
