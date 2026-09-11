@@ -112,8 +112,21 @@ try:
 
         # Liste Kartları Gösterimi
         if filtreli_siparisler:
-            st.caption(f"Toplam {len(filtreli_siparisler)} kayıt listeleniyor.")
+            # Toplam ciro ve m2 hesaplama
+            toplam_tutar = sum(float(k.get("tutar", 0)) for k in filtreli_siparisler)
+            toplam_m2 = sum(float(k.get("en", 0)) * float(k.get("boy", 0)) for k in filtreli_siparisler)
             
+            toplam_tutar_formatted = f"{toplam_tutar:,.0f}".replace(",", ".")
+            toplam_m2_formatted = f"{toplam_m2:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
+            # Özet Bilgi Kartları
+            m_col1, m_col2, m_col3 = st.columns(3)
+            m_col1.metric("Toplam Kayıt", f"{len(filtreli_siparisler)} Adet")
+            m_col2.metric("Toplam Alan", f"{toplam_m2_formatted} m²")
+            m_col3.metric("Toplam Tutar", f"{toplam_tutar_formatted} TL")
+
+            st.divider()
+
             for k in filtreli_siparisler:
                 siparis_id = k.get("id")
                 ad = (
@@ -128,6 +141,9 @@ try:
                 tutar_val = float(k.get("tutar", 0))
                 m2_val = en_val * boy_val
                 tarih_raw = k.get("tarih", "")
+
+                # Tutar Formatlama (Örn: 586.608 TL)
+                tutar_formatted = f"{tutar_val:,.0f}".replace(",", ".")
 
                 tarih_formatted = ""
                 if tarih_raw:
@@ -151,7 +167,7 @@ try:
                         with c2:
                             st.markdown(f"**Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
                         with c3:
-                            st.markdown(f"**Tutar:** {tutar_val:.2f} TL")
+                            st.markdown(f"**Tutar:** {tutar_formatted} TL")
                         with c4:
                             if st.button("✏️", key=f"btn_edit_{siparis_id}"):
                                 st.session_state[edit_key] = True
