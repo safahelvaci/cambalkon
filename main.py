@@ -80,35 +80,50 @@ def metinden_tam_sayiya(val_str):
     except ValueError:
         return 0
 
-# Binlik Noktalı Formatlama (Örn: 1200 -> 1.200)
+# Binlik Noktalı Formatlama (Örn: 1300 -> 1.300)
 def format_tam_tl(sayi):
     if sayi <= 0:
         return ""
     return f"{int(round(sayi)):,.0f}".replace(",", ".")
 
+# Metrekare Fiyatı için Otomatik Noktalama Callback Fonksiyonu
+def m2_fiyat_formatla():
+    ham_deger = st.session_state.get("m2_fiyat_input", "")
+    sayi = metinden_tam_sayiya(ham_deger)
+    if sayi > 0:
+        st.session_state["m2_fiyat_input"] = format_tam_tl(sayi)
+
+# Session State Ilk Tanımlama
+if "m2_fiyat_input" not in st.session_state:
+    st.session_state["m2_fiyat_input"] = ""
+
 # --- MÜŞTERİ / SİPARİŞ EKLEME FORMU ---
 st.header("Yeni Sipariş Ekle")
+
+col1, col2, col3 = st.columns(3)
+en = col1.number_input("En (m)", min_value=0.0, step=0.01)
+boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
+
+# Metrekare Fiyatı Kutusu (Kullanıcı girdikçe/çıktıkça otomatik 1.300 yapar)
+m2_fiyat_str = col3.text_input(
+    "Metrekare Fiyatı (TL)", 
+    key="m2_fiyat_input", 
+    on_change=m2_fiyat_formatla
+)
+
+m2_fiyat = metinden_tam_sayiya(m2_fiyat_str)
+
+# Otomatik Toplam Tutar ve m² Hesaplama
+hesaplanan_m2 = en * boy
+hesaplanan_tutar = hesaplanan_m2 * m2_fiyat
+
+if en > 0 and boy > 0 and m2_fiyat > 0:
+    tutar_yazi = format_tam_tl(hesaplanan_tutar)
+    m2_fiyat_yazi = format_tam_tl(m2_fiyat)
+    st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💵 **m² Fiyatı:** {m2_fiyat_yazi} TL | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
+
 with st.form("siparis_formu", clear_on_submit=True):
     ad_soyad = st.text_input("Müşteri Adı Soyadı")
-    col1, col2, col3 = st.columns(3)
-    en = col1.number_input("En (m)", min_value=0.0, step=0.01)
-    boy = col2.number_input("Boy (m)", min_value=0.0, step=0.01)
-    
-    # Metrekare Fiyatı Metin Kutusu
-    m2_fiyat_raw = col3.text_input("Metrekare Fiyatı (TL)")
-
-    # Girilen ham veriyi sayıya dönüştür ve binlik ayracı (nokta) ekleyerek formatla
-    m2_fiyat = metinden_tam_sayiya(m2_fiyat_raw)
-    m2_fiyat_yazi = format_tam_tl(m2_fiyat)
-
-    # Otomatik Toplam Tutar ve m² Hesaplama
-    hesaplanan_m2 = en * boy
-    hesaplanan_tutar = hesaplanan_m2 * m2_fiyat
-
-    if en > 0 and boy > 0 and m2_fiyat > 0:
-        tutar_yazi = format_tam_tl(hesaplanan_tutar)
-        st.info(f"📐 **Hesaplanan Alan:** {hesaplanan_m2:.2f} m² | 💵 **m² Fiyatı:** {m2_fiyat_yazi} TL | 💰 **Otomatik Toplam Tutar:** {tutar_yazi} TL")
-
     submit = st.form_submit_button("Siparişi Kaydet")
 
     if submit:
@@ -129,6 +144,7 @@ with st.form("siparis_formu", clear_on_submit=True):
                         temp_data[col_name] = ad_soyad
                         supabase.table("siparisler").insert(temp_data).execute()
                         st.success(f"Sipariş başarıyla kaydedildi! (Toplam Tutar: {format_tam_tl(hesaplanan_tutar)} TL)")
+                        st.session_state["m2_fiyat_input"] = ""
                         st.rerun()
                         break
                     except Exception:
@@ -137,6 +153,7 @@ with st.form("siparis_formu", clear_on_submit=True):
                 try:
                     supabase.table("siparisler").insert(data).execute()
                     st.success("Sipariş kaydedildi.")
+                    st.session_state["m2_fiyat_input"] = ""
                     st.rerun()
                 except Exception as e:
                     st.error(f"Sipariş kaydedilemedi: {e}")
