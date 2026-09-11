@@ -130,7 +130,7 @@ with st.form("siparis_formu", clear_on_submit=True):
                 "en": en,
                 "boy": boy,
                 "tutar": round(hesaplanan_tutar),
-                "odenen": 0,  # Başlangıçta ödenen 0
+                "odenen": 0,
                 "tarih": now_turkey
             }
 
@@ -159,7 +159,7 @@ with st.form("siparis_formu", clear_on_submit=True):
 
 st.divider()
 
-# --- KAYITLI SİPARİŞLERİ LİSTELEME VE ÖDEME ALMA ---
+# --- KAYITLI SİPARİŞLERİ LİSTELEME VE DÜZENLEME ---
 st.header("Kayıtlı Siparişler ve Borç Takibi")
 
 try:
@@ -206,9 +206,8 @@ try:
 
         if filtreli_siparisler:
             toplam_tutar = sum(float(k.get("tutar", 0)) for k in filtreli_siparisler)
-            toplam_odenen = sum(float(k.get("odenen", 0)) for k in filtreli_siparisler)
+            toplam_odenen = sum(float(k.get("odenen", 0) or 0) for k in filtreli_siparisler)
             toplam_kalan = toplam_tutar - toplam_odenen
-            toplam_m2 = sum(float(k.get("en", 0)) * float(k.get("boy", 0)) for k in filtreli_siparisler)
 
             # Özet Bilgi Kartları
             m_col1, m_col2, m_col3, m_col4 = st.columns(4)
@@ -231,7 +230,7 @@ try:
                 en_val = float(k.get("en", 0))
                 boy_val = float(k.get("boy", 0))
                 tutar_val = float(k.get("tutar", 0))
-                odenen_val = float(k.get("odenen", 0))
+                odenen_val = float(k.get("odenen", 0) or 0)
                 kalan_val = tutar_val - odenen_val
                 m2_val = en_val * boy_val
                 tarih_raw = k.get("tarih", "")
@@ -244,52 +243,97 @@ try:
                     except Exception:
                         tarih_formatted = tarih_raw
 
+                edit_key = f"edit_{siparis_id}"
+                if edit_key not in st.session_state:
+                    st.session_state[edit_key] = False
+
                 with st.container(border=True):
-                    c1, c2, c3, c4 = st.columns([3, 2.5, 3, 1])
-                    with c1:
-                        st.markdown(f"### 👤 {ad}")
-                        if tarih_formatted:
-                            st.caption(f"📅 Sipariş Tarihi: {tarih_formatted}")
-                        st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
+                    if not st.session_state[edit_key]:
+                        c1, c2, c3, c4, c5 = st.columns([3, 2.5, 3, 0.5, 0.5])
+                        with c1:
+                            st.markdown(f"### 👤 {ad}")
+                            if tarih_formatted:
+                                st.caption(f"📅 Sipariş Tarihi: {tarih_formatted}")
+                            st.markdown(f"📏 **Ölçü:** {en_val:.2f}m x {boy_val:.2f}m ({m2_val:.2f} m²)")
 
-                    with c2:
-                        st.markdown(f"💵 **Toplam Borç:** {format_tam_tl(tutar_val)} TL")
-                        st.markdown(f"✅ **Ödenen:** {format_tam_tl(odenen_val)} TL")
-                        if kalan_val > 0:
-                            st.markdown(f"🔴 **Kalan Bakiye:** <span style='color:red; font-weight:bold;'>{format_tam_tl(kalan_val)} TL</span>", unsafe_allow_html=True)
-                        else:
-                            st.markdown("🟢 **Ödeme Tamamlandı (Borcu Yok)**")
+                        with c2:
+                            st.markdown(f"💵 **Toplam Borç:** {format_tam_tl(tutar_val)} TL")
+                            st.markdown(f"✅ **Ödenen:** {format_tam_tl(odenen_val)} TL")
+                            if kalan_val > 0:
+                                st.markdown(f"🔴 **Kalan Bakiye:** <span style='color:red; font-weight:bold;'>{format_tam_tl(kalan_val)} TL</span>", unsafe_allow_html=True)
+                            else:
+                                st.markdown("🟢 **Ödeme Tamamlandı (Borcu Yok)**")
 
-                    with c3:
-                        # Ödeme Ekleme Formu
-                        if kalan_val > 0:
-                            with st.expander("💳 Ödeme / Taksit Ekle"):
-                                with st.form(f"odeme_form_{siparis_id}"):
-                                    yeni_odeme_str = st.text_input("Ödenen Tutar (TL)", key=f"pay_in_{siparis_id}")
-                                    odeme_tarihi = st.date_input("Ödeme Tarihi", value=datetime.date.today(), key=f"pay_date_{siparis_id}")
-                                    
-                                    if st.form_submit_button("Ödemeyi Kaydet"):
-                                        yeni_odeme = metinden_tam_sayiya(yeni_odeme_str)
-                                        if yeni_odeme > 0:
-                                            guncel_odenen = odenen_val + yeni_odeme
-                                            try:
-                                                # Sipariş tablosundaki toplam ödeneni güncelle
-                                                supabase.table("siparisler").update({"odenen": guncel_odenen}).eq("id", siparis_id).execute()
-                                                st.success(f"{format_tam_tl(yeni_odeme)} TL ödeme kaydedildi.")
-                                                st.rerun()
-                                            except Exception as ex:
-                                                st.error(f"Ödeme kaydedilemedi: {ex}")
-                                        else:
-                                            st.warning("Geçerli bir tutar giriniz.")
+                        with c3:
+                            if kalan_val > 0:
+                                with st.expander("💳 Ödeme / Taksit Ekle"):
+                                    with st.form(f"odeme_form_{siparis_id}"):
+                                        yeni_odeme_str = st.text_input("Ödenen Tutar (TL)", key=f"pay_in_{siparis_id}")
+                                        
+                                        if st.form_submit_button("Ödemeyi Kaydet"):
+                                            yeni_odeme = metinden_tam_sayiya(yeni_odeme_str)
+                                            if yeni_odeme > 0:
+                                                guncel_odenen = odenen_val + yeni_odeme
+                                                try:
+                                                    supabase.table("siparisler").update({"odenen": guncel_odenen}).eq("id", siparis_id).execute()
+                                                    st.success(f"{format_tam_tl(yeni_odeme)} TL ödeme kaydedildi.")
+                                                    st.rerun()
+                                                except Exception as ex:
+                                                    st.error(f"Ödeme kaydedilemedi: {ex}")
+                                            else:
+                                                st.warning("Geçerli bir tutar giriniz.")
 
-                    with c4:
-                        if st.button("🗑️ Sil", key=f"btn_del_{siparis_id}"):
-                            try:
-                                supabase.table("siparisler").delete().eq("id", siparis_id).execute()
-                                st.success("Kayıt silindi.")
+                        with c4:
+                            if st.button("✏️", key=f"btn_edit_{siparis_id}", help="Siparişi Düzenle"):
+                                st.session_state[edit_key] = True
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"Silinemedi: {e}")
+
+                        with c5:
+                            if st.button("🗑️", key=f"btn_del_{siparis_id}", help="Siparişi Sil"):
+                                try:
+                                    supabase.table("siparisler").delete().eq("id", siparis_id).execute()
+                                    st.success("Kayıt silindi.")
+                                    st.rerun()
+                                except Exception as e:
+                                    st.error(f"Silinemedi: {e}")
+
+                    else:
+                        # Düzenleme Modu
+                        st.markdown(f"**Düzenleniyor:** {ad}")
+                        with st.form(f"form_edit_{siparis_id}"):
+                            yeni_ad = st.text_input("Müşteri Adı Soyadı", value=ad)
+                            e_col1, e_col2, e_col3 = st.columns(3)
+                            yeni_en = e_col1.number_input("En (m)", min_value=0.0, value=en_val, step=0.01)
+                            yeni_boy = e_col2.number_input("Boy (m)", min_value=0.0, value=boy_val, step=0.01)
+                            
+                            varsayilan_m2_fiyat = (tutar_val / (en_val * boy_val)) if (en_val * boy_val) > 0 else 0
+                            varsayilan_m2_str = format_tam_tl(varsayilan_m2_fiyat)
+                            
+                            yeni_m2_fiyat_str = e_col3.text_input("Metrekare Fiyatı (TL)", value=varsayilan_m2_str)
+
+                            yeni_m2_fiyat = metinden_tam_sayiya(yeni_m2_fiyat_str)
+                            yeni_hesaplanan_tutar = yeni_en * yeni_boy * yeni_m2_fiyat
+                            st.caption(f"Yeni Toplam Tutar: {format_tam_tl(yeni_hesaplanan_tutar)} TL")
+
+                            f_c1, f_c2 = st.columns(2)
+                            with f_c1:
+                                if st.form_submit_button("Kaydet ve Güncelle"):
+                                    up_data = {"en": yeni_en, "boy": yeni_boy, "tutar": round(yeni_hesaplanan_tutar)}
+                                    for key_name in ["ad_soyad", "musteri_adi", "musteri", "ad", "name"]:
+                                        if key_name in k:
+                                            up_data[key_name] = yeni_ad
+                                            break
+                                    try:
+                                        supabase.table("siparisler").update(up_data).eq("id", siparis_id).execute()
+                                        st.session_state[edit_key] = False
+                                        st.success("Başarıyla güncellendi!")
+                                        st.rerun()
+                                    except Exception as ex:
+                                        st.error(f"Güncellenemedi: {ex}")
+                            with f_c2:
+                                if st.form_submit_button("İptal"):
+                                    st.session_state[edit_key] = False
+                                    st.rerun()
 
         else:
             st.warning("Arama veya filtre kriterlerine uygun sipariş bulunamadı.")
