@@ -6,6 +6,53 @@ import zoneinfo
 # Streamlit Sayfa Ayarları
 st.set_page_config(page_title="Cam Balkon Sipariş Takip", layout="wide")
 
+# --- ÖZEL CSS (Turuncu Başlık Banner ve Filigran) ---
+st.markdown("""
+    <style>
+    /* Arka plan filigranı */
+    .stApp {
+        background-color: transparent;
+    }
+    .stApp::before {
+        content: "Alaaddin HELVACI";
+        position: fixed;
+        top: 40%;
+        left: 50%;
+        transform: translate(-50%, -50%) rotate(-30deg);
+        font-size: 80px;
+        font-weight: bold;
+        color: rgba(255, 255, 255, 0.04);
+        white-space: nowrap;
+        pointer-events: none;
+        z-index: 0;
+    }
+    
+    /* Turuncu Başlık Kutusu */
+    .header-banner {
+        background-color: #ff6600;
+        padding: 20px;
+        border-radius: 10px;
+        text-align: center;
+        margin-bottom: 25px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+    }
+    .header-banner h1 {
+        color: #ffffff !important;
+        margin: 0 !important;
+        font-size: 38px !important;
+        font-weight: 800 !important;
+        letter-spacing: 2px;
+        text-transform: uppercase;
+    }
+    .header-banner h3 {
+        color: #fff0e6 !important;
+        margin-top: 5px !important;
+        font-size: 20px !important;
+        font-weight: 400 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 # Supabase Bağlantısı
 @st.cache_resource
 def init_supabase() -> Client:
@@ -15,7 +62,13 @@ def init_supabase() -> Client:
 
 supabase = init_supabase()
 
-st.title("Cam Balkon Sipariş & Müşteri Takip")
+# --- TURUNCU BAŞLIK BANNERI ---
+st.markdown("""
+    <div class="header-banner">
+        <h1>MAKRO CAMBALKON</h1>
+        <h3>Cam Balkon Sipariş & Müşteri Takip</h3>
+    </div>
+""", unsafe_allow_html=True)
 
 # --- MÜŞTERİ / SİPARİŞ EKLEME FORMU ---
 st.header("Yeni Sipariş Ekle")
