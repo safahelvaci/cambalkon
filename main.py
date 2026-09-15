@@ -10,9 +10,9 @@ st.set_page_config(page_title="Cam Balkon Sipariş Takip", layout="wide")
 try:
     from urllib.parse import urlparse
     supabase_host = urlparse(st.secrets["SUPABASE_URL"]).hostname
- supabase_ips = socket.getaddrinfo(supabase_host, 443)
-ip_list = sorted(set(item[4][0] for item in supabase_ips))
-st.success(f"Supabase DNS OK: {supabase_host} -> {ip_list}")
+    supabase_ips = socket.getaddrinfo(supabase_host, 443)
+    ip_list = sorted(set(item[4][0] for item in supabase_ips))
+    st.success(f"Supabase DNS OK: {supabase_host} -> {ip_list}")
 except Exception as e:
     st.error(f"SUPABASE DNS HATASI: {e}")
 # --- ÖZEL CSS (Turuncu Başlık Banner ve Filigran) ---
