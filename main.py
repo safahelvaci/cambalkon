@@ -56,6 +56,24 @@ st.markdown("""
 def init_supabase() -> Client:
     url = st.secrets["SUPABASE_URL"]
     key = st.secrets["SUPABASE_KEY"]
+
+    # Streamlit Cloud'da IPv4 kullanmaya zorla
+    import socket
+
+    original_getaddrinfo = socket.getaddrinfo
+
+    def ipv4_getaddrinfo(host, port, family=0, type=0, proto=0, flags=0):
+        return original_getaddrinfo(
+            host,
+            port,
+            socket.AF_INET,
+            type,
+            proto,
+            flags
+        )
+
+    socket.getaddrinfo = ipv4_getaddrinfo
+
     return create_client(url, key)
 
 supabase = init_supabase()
