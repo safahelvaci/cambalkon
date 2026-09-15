@@ -470,4 +470,4 @@ try:
         st.info("Henüz kayıtlı bir sipariş bulunmuyor.")
 
 except Exception as e:
-    st.error(f"Veri çekilirken bir hata oluştu: {e}")
+    st.exception(e)
